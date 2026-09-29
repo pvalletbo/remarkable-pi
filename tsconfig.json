@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node"],
+    "lib": ["ES2023", "DOM"],
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts", "extensions/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
+}

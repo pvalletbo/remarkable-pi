@@ -1,0 +1,49 @@
+{
+  "name": "remarkable-pi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only, local reMarkable PDF bridge for pi agent sessions",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "keywords": [
+    "pi-package",
+    "remarkable",
+    "local-first"
+  ],
+  "bin": {
+    "remarkable-pi": "./dist/cli.js"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/remarkable.ts"
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "dev": "tsx src/cli.ts",
+    "predemo": "npm run build",
+    "demo": "tsx scripts/demo.ts",
+    "verify": "npm run build && npm run check && npm test"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "1.0.9",
+    "effect": "4.0.0-rc.118",
+    "pdfjs-dist": "6.3.289"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.99.1",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.2"
+  }
+}
