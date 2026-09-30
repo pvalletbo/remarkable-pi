@@ -13,7 +13,8 @@ Requirements: **Node.js 22.19+**, npm, pi, and Linux or macOS. Windows/WSL has n
 ### 1. Build and load
 
 ```sh
-cd /home/ai-agent/git/remarkable-pi   # or wherever you cloned it
+git clone https://github.com/pvalletbo/remarkable-pi.git
+cd remarkable-pi
 npm ci --ignore-scripts
 npm run build
 
