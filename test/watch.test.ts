@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { Effect } from "effect";
 import { defaults } from "../src/config.js";
 import { watchNotes } from "../src/bridge.js";

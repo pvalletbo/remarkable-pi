@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { Effect } from "effect";
 import { readFile, stat } from "node:fs/promises";
 import { defaults, loadConfig, paths, saveConfig, validateConfig } from "../src/config.js";
@@ -43,6 +43,27 @@ it("lists nested notebooks and uses only the two read-only stock routes", async 
   expect((await readFile(artifact.pdfPath)).subarray(0, 8).toString()).toBe("%PDF-1.4");
   expect((await stat(artifact.pdfPath)).mode & 0o777).toBe(0o600);
   expect(tabletMock.requests).toEqual(["POST /documents/", "POST /documents/folder-1", "GET /download/notebook-1/placeholder"]);
+});
+
+it("keeps Bun tablet traffic direct even when proxy environment variables are set", async () => {
+  tabletMock = await mockTablet();
+  const proxy = await mockTablet();
+  const keys = ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"];
+  const previous = new Map(keys.map(key => [key, process.env[key]]));
+  try {
+    for (const key of keys) process.env[key] = key.toLowerCase() === "no_proxy" ? "" : proxy.url;
+    const tablet = new Tablet({ ...defaults, url: tabletMock.url });
+    const documents = await Effect.runPromise(tablet.listAll());
+    expect(selectDocument(documents, "notebook-1").name).toBe("Demo notebook");
+    const pdf = await Effect.runPromise(tablet.download("notebook-1"));
+    expect(Buffer.from(pdf).subarray(0, 8).toString()).toBe("%PDF-1.4");
+    expect(proxy.requests).toHaveLength(0);
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await proxy.close();
+  }
 });
 
 it("never silently selects duplicate notebook names", () => {

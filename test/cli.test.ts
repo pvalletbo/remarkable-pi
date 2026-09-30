@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
@@ -16,6 +16,9 @@ it("runs the compiled CLI against the stock mock API and targets an explicit liv
   delete env.PI_SESSION_ID;
   const cli = (...args: string[]) => execute(process.execPath, [resolve("dist/cli.js"), ...args], { env });
   try {
+    const doctor = JSON.parse((await cli("doctor", "--url", mock.url, "--json")).stdout);
+    expect(doctor.runtime).toBe("bun");
+    expect(doctor.bunVersion).toBe(process.versions.bun);
     const list = JSON.parse((await cli("list", "--url", mock.url, "--json")).stdout);
     expect(list.some((d: { name: string }) => d.name === "Demo notebook")).toBe(true);
     const sessions = JSON.parse((await cli("sessions", "--json")).stdout);

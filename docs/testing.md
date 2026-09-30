@@ -5,18 +5,22 @@
 After dependency installation:
 
 ```sh
-npm run verify
-npm audit
-npm run demo -- --once
+bun install --frozen-lockfile --ignore-scripts
+bun run verify
+bun audit
+bun run demo -- --once
+
+# Optional: verify an existing Node-hosted pi too (requires Node 22.19+).
+bun run test:pi-node
 ```
 
-The pi integration test starts an isolated, offline pi RPC subprocess with a dummy API key, no tools, no user configuration, and no ordinary model prompts. It verifies extension discovery, authenticated CLI delivery, real PNG content in conversation messages, watching, session replacement, and receiver cleanup. It asserts no `agent_start` events occur. Storage is temporary and removed after the tests.
+Tests use Bun's built-in `bun:test` runner. The default pi integration test starts an isolated, offline Bun-hosted pi RPC subprocess with a dummy API key, no tools, no user configuration, and no ordinary model prompts. It verifies extension discovery, authenticated CLI delivery, real PNG content in conversation messages, watching, session replacement, and receiver cleanup. It asserts no `agent_start` events occur. Storage is temporary and removed after the tests.
 
-The test suite builds `dist/` because PDF rendering launches a real compiled worker. This also verifies the entry points users will run, rather than mocking the rendering library.
+The `test`/`verify` scripts build `dist/` because PDF rendering launches a real compiled worker under Bun. If invoking `bun test` directly, run `bun run build` first. The `test:pi-node` command runs the same integration test with pi hosted by Node while keeping the PDF worker on Bun; CI runs both host variants. Bun's eager promise matchers are not used to capture still-pending cancellation/concurrency requests, so those tests can reach their abort/release steps. This also verifies the entry points users will run, rather than mocking the rendering library.
 
 ## Manual USB acceptance — not yet physically verified
 
-Record your OS, Node/pi versions and tablet firmware when testing.
+Record your OS, Bun/pi versions (and Node version if hosting pi with Node) and tablet firmware when testing.
 
 1. Browser opens `http://10.11.99.1` with the tablet unlocked/interface enabled.
 2. CLI `doctor` and `list` work; nested notebooks appear with correct names/IDs.
@@ -43,4 +47,4 @@ Record your OS, Node/pi versions and tablet firmware when testing.
 
 ## Known untested environments
 
-Physical reMarkable firmware/USB networking; macOS native canvas and sockets; network forwarding to a remote pi host; cable-free stock-firmware behavior; long/complex real notebooks; vision-model handwriting quality. The automated suite was run on Linux x64, Node 22, pi 0.99.1.
+Physical reMarkable firmware/USB networking; macOS native canvas and sockets; network forwarding to a remote pi host; cable-free stock-firmware behavior; long/complex real notebooks; vision-model handwriting quality. The automated suite was run on Linux x64, Bun 1.4.2, and pi 0.99.1, with a separate compatibility run using Node 22 to host pi.
