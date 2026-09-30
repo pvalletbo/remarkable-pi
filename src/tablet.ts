@@ -1,4 +1,7 @@
 import { Effect } from "effect";
+import { request as httpRequest } from "node:http";
+import type { IncomingMessage } from "node:http";
+import { request as httpsRequest } from "node:https";
 import type { Config } from "./config.js";
 import { attempt, BridgeError } from "./errors.js";
 
@@ -30,26 +33,18 @@ export function parseDocuments(value: unknown, parentId = "", parentPath = ""): 
   });
 }
 
-async function boundedBody(response: Response, limit: number): Promise<Uint8Array> {
-  const length = Number(response.headers.get("content-length"));
-  if (length > limit) { await response.body?.cancel(); throw new Error(`Response exceeds ${limit} bytes`); }
-  if (!response.body) throw new Error("Empty tablet response");
-  const reader = response.body.getReader();
+async function boundedBody(response: IncomingMessage, limit: number): Promise<Uint8Array> {
+  const length = Number(response.headers["content-length"]);
+  if (length > limit) throw new Error(`Response exceeds ${limit} bytes`);
   const chunks: Uint8Array[] = [];
   let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > limit) throw new Error(`Response exceeds ${limit} bytes`);
-      chunks.push(value);
-    }
-  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-  const body = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
-  return body;
+  for await (const chunk of response) {
+    size += chunk.byteLength;
+    if (size > limit) throw new Error(`Response exceeds ${limit} bytes`);
+    chunks.push(chunk);
+  }
+  if (!response.complete) throw new Error("Incomplete tablet response");
+  return Buffer.concat(chunks, size);
 }
 
 export function isPdf(data: Uint8Array) {
@@ -60,15 +55,30 @@ export class Tablet {
   constructor(readonly config: Config) {}
 
   private request(path: string, method: "GET" | "POST", limit: number) {
-    return attempt(`Cannot read tablet at ${this.config.url}. Connect USB, unlock it, and enable Settings → Storage → USB web interface`, async (signal) => {
-      const response = await fetch(`${this.config.url}${path}`, {
-        method, ...(method === "POST" ? { body: "" } : {}),
+    return attempt(`Cannot read tablet at ${this.config.url}. Connect USB, unlock it, and enable Settings → Storage → USB web interface`, signal => new Promise<Uint8Array>((resolve, reject) => {
+      const url = new URL(`${this.config.url}${path}`);
+      // Direct sockets avoid Bun fetch's automatic/cached proxy environment.
+      // These compatible APIs run in Bun; no Node executable is involved.
+      const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+      const req = request(url, {
+        method, agent: false,
         signal: AbortSignal.any([signal, AbortSignal.timeout(this.config.timeoutMs)]),
-        redirect: "error",
+      }, response => {
+        const status = response.statusCode ?? 0;
+        // Reject redirects as well as errors; never forward notes to another host.
+        if (status < 200 || status >= 300) {
+          reject(new Error(`HTTP ${status} for ${path}`));
+          response.destroy(); req.destroy();
+          return;
+        }
+        boundedBody(response, limit).then(resolve, error => {
+          reject(error);
+          response.destroy(); req.destroy();
+        });
       });
-      if (!response.ok) { await response.body?.cancel(); throw new Error(`HTTP ${response.status} for ${path}`); }
-      return boundedBody(response, limit);
-    });
+      req.on("error", reject);
+      req.end(); // The stock listing POST has an empty body.
+    }));
   }
 
   listFolder(parentId = "", parentPath = "") {

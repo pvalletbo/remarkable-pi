@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { spawn } from "node:child_process";
 import { resolve, join } from "node:path";
 import { once } from "node:events";
@@ -11,14 +11,16 @@ import { isolatedHome, mockTablet } from "./helpers.js";
 
 type RecordValue = Record<string, any>;
 
-it("loads in real offline pi, imports PDF images as context, watches, and removes the old receiver on session replacement", async () => {
+const piRuntime = process.env.REMARKABLE_PI_TEST_PI_RUNTIME === "node" ? "node" : "bun";
+
+it(`loads in real offline ${piRuntime}-hosted pi, imports PDF images as context, watches, and removes the old receiver on session replacement`, async () => {
   const home = await isolatedHome();
   const mock = await mockTablet();
   await saveConfig({ url: mock.url, pollIntervalMs: 1000, settleMs: 0, exportIntervalMs: 5000, maxImageEdge: 500 });
   const env: NodeJS.ProcessEnv = { ...process.env, PI_CODING_AGENT_DIR: join(home.home, "pi-agent"), PI_OFFLINE: "1" };
   delete env.PI_SESSION_ID;
   delete env.PI_SESSION_FILE;
-  const child = spawn(process.execPath, [
+  const child = spawn(piRuntime === "node" ? "node" : process.execPath, [
     resolve("node_modules/@earendil-works/pi-coding-agent/dist/cli.js"),
     "--mode", "rpc", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files", "--no-approve", "--no-tools", "--offline",
     "--provider", "anthropic", "--model", "claude-sonnet-4-20250514", "--api-key", "offline-test-not-used",

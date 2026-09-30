@@ -8,6 +8,7 @@ import type { Config } from "./config.js";
 import type { Artifact } from "./artifacts.js";
 import { sha256 } from "./artifacts.js";
 import { attempt } from "./errors.js";
+import { bunExecutable } from "./runtime.js";
 
 export interface RenderedPdf {
   totalPages: number;
@@ -34,8 +35,9 @@ export function renderPdf(artifact: Artifact, config: Config) {
       }
     } catch { /* A missing/incomplete cache is regenerated locally. */ }
     if (!rendered) {
-      const { stdout } = await execute(process.execPath, [
-        "--max-old-space-size=512", worker, artifact.pdfPath, directory,
+      // pi itself may be hosted by Node, so process.execPath is not necessarily Bun.
+      const { stdout } = await execute(bunExecutable(), [
+        "--smol", "--no-install", "--no-env-file", worker, artifact.pdfPath, directory,
         String(config.maxPages), String(config.maxImageEdge), String(config.maxPdfBytes),
       ], { signal, timeout: config.timeoutMs, maxBuffer: 1024 * 1024 });
       rendered = JSON.parse(stdout) as RenderedPdf;

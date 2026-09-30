@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { parseArgs } from "node:util";
 import { basename } from "node:path";
 import { Effect } from "effect";
@@ -41,6 +41,7 @@ No flashing, uploads, deletes, tablet packages, or cloud API calls.
 `;
 
 async function main() {
+  if (!process.versions.bun) throw new Error("This CLI requires Bun. Run bun dist/cli.js <command> instead of node dist/cli.js.");
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: { url: { type: "string" }, session: { type: "string" }, json: { type: "boolean" }, port: { type: "string" }, help: { type: "boolean", short: "h" } },
@@ -81,8 +82,8 @@ async function main() {
       let rootEntries = 0;
       try { rootEntries = (await run(tablet.listFolder())).length; }
       catch (error) { tabletError = errorMessage(error); process.exitCode = 1; }
-      const data = { node: process.version, tabletUrl: config.url, tabletReachable: !tabletError, rootEntries, tabletError, liveReceivers: sessions.length, paths: paths() };
-      return output(data, `${tabletError ? `FAIL: ${tabletError}` : `OK: tablet reachable (${rootEntries} root entries)`}\n${sessions.length} live pi receiver(s).\nCache: ${paths().exportsDir}\nTest rendering and the full pipeline without hardware: npm run demo`);
+      const data = { runtime: "bun", bunVersion: process.versions.bun, tabletUrl: config.url, tabletReachable: !tabletError, rootEntries, tabletError, liveReceivers: sessions.length, paths: paths() };
+      return output(data, `${tabletError ? `FAIL: ${tabletError}` : `OK: tablet reachable (${rootEntries} root entries)`}\n${sessions.length} live pi receiver(s).\nCache: ${paths().exportsDir}\nTest rendering and the full pipeline without hardware: bun run demo`);
     }
     if (command === "import") {
       if (args.length !== 1) throw new Error("Usage: import <file.pdf> [--session ID]; quote paths containing spaces");

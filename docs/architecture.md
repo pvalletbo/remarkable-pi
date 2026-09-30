@@ -9,7 +9,7 @@ Tablet client — Effect v4 pipeline
        │ validated IDs, bounded bodies, timeouts, no redirects
        ▼
 Local immutable PDF cache (owner-only permissions)
-       │ node subprocess, deadline, JS heap cap, local assets only
+       │ Bun subprocess, deadline, low-memory mode, local assets only
        ▼
 PDF.js + native canvas → last N page PNGs + embedded PDF text
        │
@@ -21,6 +21,16 @@ PDF.js + native canvas → last N page PNGs + embedded PDF text
                               custom context message (default)
                               or queued user follow-up (opt-in)
 ```
+
+## Bun runtime and pi compatibility
+
+The CLI has a Bun shebang. Build/typecheck commands execute TypeScript with Bun, tests use `bun:test`, and dependencies are installed from `bun.lock`. Development and demo scripts run directly as TypeScript under Bun; tsx and Vitest are no longer dependencies.
+
+Shared modules retain `node:` imports, which Bun implements, so the extension also works inside an existing Node-hosted pi. The rendering launcher uses `src/runtime.ts` to resolve **Bun**, not blindly `process.execPath` (which is Node inside a standard pi process). `REMARKABLE_PI_BUN` can provide an explicit executable; otherwise a Bun host reuses its own executable and a Node host searches PATH for `bun`.
+
+Bun's `fetch` automatically picks up proxy environment variables, and its released runtime can cache that proxy despite per-request disable options. The tablet client instead uses Bun's compatible `node:http`/`node:https` APIs with direct sockets and no proxy agent. Notebook requests stay on the direct USB/LAN link or the explicit SSH tunnel; regression tests check that neither listing nor PDF downloads contact an environment-configured proxy. Responses remain byte-bounded, incomplete bodies fail, request deadlines/cancellation cover the body, and redirects are never followed.
+
+The PDF subprocess runs with `--smol`, `--no-install`, and `--no-env-file`: lower-memory behavior without runtime dependency downloads or implicit dotenv loading from pi's working directory. Bun's low-memory mode is **not a hard memory/heap cap**. The export-byte/page/image limits and process deadline remain in place. CI verifies both Bun-hosted and Node-hosted pi, but all bridge commands and PDF workers use Bun.
 
 ## No tablet writes
 
@@ -59,4 +69,4 @@ All bridge data stays on the computer/tablet link. PDFs/PNGs are private files; 
 
 There is no backend service, always-on HTTP listener, telemetry, cloud authentication, or automatic startup service. The mock HTTP server exists only in tests/demo and binds to loopback. Renderer assets (fonts, CMaps, WASM) are loaded from installed dependencies rather than downloaded.
 
-PDF subprocess heap/time limits protect responsiveness, but native canvas allocations are outside the JS heap cap. This is not a hardened untrusted-document sandbox. Automatic disk-cache retention is intentionally deferred; inspect and clean old exports when needed.
+The PDF subprocess deadline and Bun low-memory mode protect responsiveness, but there is no hard process-memory cap, including for native canvas allocations. This is not a hardened untrusted-document sandbox. Automatic disk-cache retention is intentionally deferred; inspect and clean old exports when needed.

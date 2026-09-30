@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { Effect } from "effect";
 import { stat } from "node:fs/promises";
 import { storePdf } from "../src/artifacts.js";
@@ -60,11 +60,13 @@ it("propagates client cancellation into a pending delivery", async () => {
   const artifact = await Effect.runPromise(storePdf("notes", "Notes", samplePdf()));
   const controller = new AbortController();
   const request = sendArtifact(receiver.endpoint, artifact, 10000, controller.signal);
-  const failure = expect(request).rejects.toThrow();
+  // Capture rejection without a matcher: Bun's promise matchers can wait eagerly,
+  // which would prevent this test from reaching the abort below.
+  const failure = request.catch(error => error);
   for (let tries = 0; !started && tries < 100; tries++) await new Promise(resolve => setTimeout(resolve, 10));
   expect(started).toBe(true);
   controller.abort();
-  await failure;
+  expect(await failure).toBeInstanceOf(Error);
   for (let tries = 0; !cancelled && tries < 100; tries++) await new Promise(resolve => setTimeout(resolve, 10));
   expect(cancelled).toBe(true);
 });
@@ -75,9 +77,9 @@ it("does not acknowledge failed deliveries and rejects concurrent work", async (
   receivers.push(receiver);
   const artifact = await Effect.runPromise(storePdf("notes", "Notes", samplePdf()));
   const first = sendArtifact(receiver.endpoint, artifact);
-  const firstFailure = expect(first).rejects.toThrow("render failed");
+  const firstFailure = first.catch(error => error);
   await new Promise(resolve => setTimeout(resolve, 30));
   await expect(sendArtifact(receiver.endpoint, artifact)).rejects.toThrow("already in progress");
   release!();
-  await firstFailure;
+  expect(await firstFailure).toMatchObject({ message: "render failed" });
 });

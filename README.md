@@ -8,15 +8,15 @@ Share handwritten notes and drawings from a **stock reMarkable 2** with the curr
 
 ## First test — about five minutes
 
-Requirements: **Node.js 22.19+**, npm, pi, and Linux or macOS. Windows/WSL has not been tested; native Windows Unix-socket delivery is not supported. The computer running this bridge must be able to reach the tablet. Download dependencies once; normal operation does not need internet access.
+Requirements: **Bun 1.4.2+**, pi, and Linux or macOS. Windows/WSL has not been tested; native Windows Unix-socket delivery is not supported. The computer running this bridge must be able to reach the tablet. Download dependencies once; normal operation does not need internet access.
 
 ### 1. Build and load
 
 ```sh
 git clone https://github.com/pvalletbo/remarkable-pi.git
 cd remarkable-pi
-npm ci --ignore-scripts
-npm run build
+bun install --frozen-lockfile --ignore-scripts
+bun run build
 
 # Install the local package for your pi sessions:
 pi install "$PWD"
@@ -27,6 +27,14 @@ In an **already running pi session**, run `/reload` after installing. Or try it 
 ```sh
 pi -e ./extensions/remarkable.ts
 ```
+
+Bun runs the CLI, development scripts, tests, TypeScript compiler, and PDF worker. The extension remains compatible with both Bun-hosted and standard Node-hosted pi; pi's own installation/runtime requirements are separate. To try the bundled pi under Bun without its Node shebang:
+
+```sh
+bun node_modules/@earendil-works/pi-coding-agent/dist/cli.js -e ./extensions/remarkable.ts
+```
+
+Make sure `bun` is on **pi's PATH**, not only the CLI's. If necessary, start pi with `REMARKABLE_PI_BUN=/absolute/path/to/bun pi ...` so its PDF subprocess can find Bun. Restart pi if Bun was installed after that pi process started.
 
 Do not resume the same session in two pi processes. The CLI will refuse ambiguous targets rather than guess.
 
@@ -99,14 +107,14 @@ The stock API cannot identify the currently open notebook. “Current” means t
 The CLI does not edit pi's JSONL files or type into a terminal. Each extension instance has an authenticated, owner-only Unix-domain socket, registered locally while that session is running.
 
 ```sh
-node dist/cli.js doctor
-node dist/cli.js list
-node dist/cli.js fetch 'Agent notes'     # save PDF only; no session needed
-node dist/cli.js sessions
+bun dist/cli.js doctor
+bun dist/cli.js list
+bun dist/cli.js fetch 'Agent notes'     # save PDF only; no session needed
+bun dist/cli.js sessions
 
-node dist/cli.js send 'Agent notes' --session <session-id-or-unique-prefix>
-node dist/cli.js watch 'Agent notes' --session <session-id-or-unique-prefix>
-node dist/cli.js import ./notes.pdf --session <session-id-or-unique-prefix>
+bun dist/cli.js send 'Agent notes' --session <session-id-or-unique-prefix>
+bun dist/cli.js watch 'Agent notes' --session <session-id-or-unique-prefix>
+bun dist/cli.js import ./notes.pdf --session <session-id-or-unique-prefix>
 ```
 
 `--session` can also specify an **instance ID**, useful if the same session was accidentally opened twice. Without the flag, `PI_SESSION_ID` targets the current session when invoked from pi's shell. Otherwise a single live receiver is selected; multiple receivers produce an error. The receiver's current `attach`/`ask` setting applies to CLI deliveries.
@@ -122,7 +130,7 @@ First get USB working. The project can forward the **existing stock web interfac
 3. Keep the USB web interface enabled. Run:
 
 ```sh
-node dist/cli.js tunnel 192.168.1.123
+bun dist/cli.js tunnel 192.168.1.123
 # Uses your OpenSSH client. Inspect/confirm its host key; enter the tablet's password.
 # Keep this terminal open. It forwards only on computer loopback, port 8088.
 ```
@@ -153,21 +161,22 @@ Keep the tunnel open, and use `/remarkable url http://127.0.0.1:8088` **on the s
 ## Test without a tablet
 
 ```sh
-npm run verify                 # build, typecheck, full tests (no model calls)
-npm run demo -- --once          # generate a vector/text PDF and render it locally
-npm run demo                   # interactive simulated tablet on localhost
+bun run verify                 # build, typecheck, full Bun tests (no model calls)
+bun run demo -- --once          # generate a vector/text PDF and render it locally
+bun run demo                   # interactive simulated tablet on localhost
+bun run test:pi-node            # optional: also test standard pi hosting (requires Node 22.19+)
 ```
 
 The interactive demo prints an isolated `REMARKABLE_PI_HOME=... pi -e ...` command for a second terminal. Run `select Demo notebook`, then `watch` inside that pi session. In the demo terminal, `n` simulates new notes, `d` disconnects, `r` reconnects, and `q` quits. Demo data lives only in ignored `.demo/`, not your personal configuration. No agent turn is started unless you explicitly choose `ask` or send a normal prompt.
 
-Tests exercise the stock routes, nested folders, real PDF rendering, size limits, private permissions, duplicate names, timestamp-only exports, absent change metadata, reconnects, retry after failed delivery, Unix-socket authentication, routing ambiguity, and **loading/delivery/session replacement in a real pi RPC subprocess running offline**.
+Tests exercise the stock routes, nested folders, real PDF rendering, direct tablet access despite proxy environment variables, size limits, private permissions, duplicate names, timestamp-only exports, absent change metadata, reconnects, retry after failed delivery, Unix-socket authentication, routing ambiguity, and **loading/delivery/session replacement in a real pi RPC subprocess running offline**.
 
 ## Configuration and storage
 
 ```sh
-node dist/cli.js config
-node dist/cli.js config set maxPages 4
-node dist/cli.js config set exportIntervalMs 15000
+bun dist/cli.js config
+bun dist/cli.js config set maxPages 4
+bun dist/cli.js config set exportIntervalMs 15000
 ```
 
 Defaults:
@@ -187,6 +196,7 @@ Defaults:
 - PDFs, images and session registrations: `~/.local/share/remarkable-pi/`.
 - Standard `XDG_CONFIG_HOME` / `XDG_DATA_HOME` overrides are respected.
 - `REMARKABLE_PI_HOME=/some/directory` isolates both under that directory (use the same value in pi and the CLI).
+- `REMARKABLE_PI_BUN=/absolute/path/to/bun` overrides the PDF worker executable. Otherwise Bun-hosted processes reuse their Bun executable; Node-hosted pi resolves `bun` from PATH.
 - Directories are `0700`, files and sockets `0600`. IPC tokens are not printed by `sessions`.
 - Each PDF is immutable/content-addressed: `exports/<document-id>/<sha256>/notes.pdf`. Notebook names are display metadata, never filesystem paths.
 - **There is no automatic retention cleanup in v0.1.** Repeated exports can accumulate, especially if firmware changes PDF timestamps. Stop watchers before manually deleting old `exports/` directories. A resumed pi transcript retains embedded preview images, but old PDF/PNG paths will stop working if you delete them. Crashed receivers leave harmless stale registry files; `sessions` only returns live authenticated instances.
@@ -200,12 +210,12 @@ Defaults:
 - **Changes not arriving:** the notebook may still be open/unsaved; leave it, wait, and try `pull`. Polling cannot force a tablet save. Sleep/lock may disconnect the API; the watcher retries.
 - **Notebook moved/deleted:** reselect it. The watcher refuses to send a replacement notebook.
 - **No images:** choose an image-capable pi model and ensure `images.blockImages` is false. Terminal inline image support affects display only; local PNG paths are still available.
-- **Renderer failure:** rebuild, check Node version/native canvas platform support, and try `npm run demo -- --once`. Parsing runs in a bounded-time subprocess, not on pi's event loop. Very large/complex/malformed PDFs may still exceed memory; the byte/page limits are not a hardened sandbox.
+- **Renderer failure:** rebuild, check Bun version/native canvas platform support, and try `bun run demo -- --once`. Ensure `bun` is on pi's PATH, or set `REMARKABLE_PI_BUN` when starting pi. Parsing runs in a bounded-time subprocess, not on pi's event loop. Very large/complex/malformed PDFs may still exceed memory; the byte/page limits are not a hardened sandbox.
 - **No live receiver:** run `/reload` after installation; check `/remarkable status`. The CLI and pi must use the same OS user and storage environment.
 - **Unmount/uninstall:** stop polling, run `pi remove /absolute/path/to/remarkable-pi`, then `/reload`. You can separately remove the project's config/cache after reviewing what you want to keep. Nothing was installed on the tablet.
 
 ## Implementation
 
-TypeScript with **Effect v4** (pinned release candidate `4.0.0-rc.118`), native `fetch`, PDF.js, and prebuilt `@napi-rs/canvas` binaries. The Effect pipeline handles failures, interruptible sequential polling, and backoff; a subprocess isolates PDF rendering. The pi extension is the session-scoped owner of polling and IPC resources.
+**Bun** runtime/package manager/test runner with TypeScript, **Effect v4** (pinned release candidate `4.0.0-rc.118`), direct HTTP(S), PDF.js, and prebuilt `@napi-rs/canvas` binaries. `bun.lock` pins dependencies. Shared modules retain Bun-compatible `node:` APIs so pi can load them under either host runtime; no Node executable is used for bridge commands or PDF rendering. The Effect pipeline handles failures, interruptible sequential polling, and backoff; a subprocess isolates PDF rendering. The pi extension is the session-scoped owner of polling and IPC resources.
 
 See [architecture](docs/architecture.md), [protocol notes and sources](docs/protocol.md), and [test checklist](docs/testing.md). MIT licensed.

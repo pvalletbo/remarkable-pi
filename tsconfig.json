@@ -8,7 +8,7 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": ["node"],
+    "types": ["bun"],
     "lib": ["ES2023", "DOM"],
     "outDir": "dist"
   },

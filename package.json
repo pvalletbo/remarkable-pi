@@ -5,8 +5,9 @@
   "description": "Read-only, local reMarkable PDF bridge for pi agent sessions",
   "license": "MIT",
   "type": "module",
+  "packageManager": "bun@1.4.2",
   "engines": {
-    "node": ">=22.19.0"
+    "bun": ">=1.4.2"
   },
   "keywords": [
     "pi-package",
@@ -22,14 +23,13 @@
     ]
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit",
-    "pretest": "npm run build",
-    "test": "vitest run",
-    "dev": "tsx src/cli.ts",
-    "predemo": "npm run build",
-    "demo": "tsx scripts/demo.ts",
-    "verify": "npm run build && npm run check && npm test"
+    "build": "bun run --bun tsc -p tsconfig.build.json",
+    "check": "bun run --bun tsc --noEmit",
+    "test": "bun run build && bun test --timeout 30000",
+    "test:pi-node": "bun run build && REMARKABLE_PI_TEST_PI_RUNTIME=node bun test test/pi-integration.test.ts --timeout 30000",
+    "dev": "bun run build && bun src/cli.ts",
+    "demo": "bun run build && bun scripts/demo.ts",
+    "verify": "bun run build && bun run check && bun test --timeout 30000"
   },
   "dependencies": {
     "@napi-rs/canvas": "1.0.9",
@@ -41,9 +41,7 @@
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.99.1",
-    "@types/node": "^22.0.0",
-    "tsx": "^4.20.0",
-    "typescript": "^5.9.0",
-    "vitest": "^5.0.2"
+    "@types/bun": "1.4.2",
+    "typescript": "^5.9.0"
   }
 }
